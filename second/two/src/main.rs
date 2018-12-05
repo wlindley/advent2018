@@ -22,21 +22,22 @@ fn get_ids() -> Vec<String> {
 }
 
 fn differ_by_one(first: &String, second: &String) -> bool {
-    let mut num_different = 0;
-    for (ch1, ch2) in first.chars().zip(second.chars()) {
-        if ch1 != ch2 {
-            num_different += 1;
+    let num_different = first.chars().zip(second.chars()).fold(0, |accum, val| {
+        if val.0 != val.1 {
+            return accum + 1;
         }
-    }
+        return accum;
+    });
     return num_different == 1;
 }
 
 fn remove_diff(first: &String, second: &String) -> String {
-    let mut result = String::new();
-    for (ch1, ch2) in first.chars().zip(second.chars()) {
-        if ch1 == ch2 {
-            result.push(ch1);
+    return first.chars().zip(second.chars()).fold(String::new(), |accum, val| {
+        if val.0 == val.1 {
+            let mut next = String::from(accum);
+            next.push(val.0);
+            return next;
         }
-    }
-    return result;
+        return accum;
+    });
 }
