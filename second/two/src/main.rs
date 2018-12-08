@@ -32,12 +32,15 @@ fn differ_by_one(first: &String, second: &String) -> bool {
 }
 
 fn remove_diff(first: &String, second: &String) -> String {
-    return first.chars().zip(second.chars()).fold(String::new(), |accum, val| {
-        if val.0 == val.1 {
-            let mut next = String::from(accum);
-            next.push(val.0);
-            return next;
-        }
-        return accum;
-    });
+    return first
+        .chars()
+        .zip(second.chars())
+        .fold(String::new(), |accum, val| {
+            if val.0 == val.1 {
+                let mut next = String::from(accum);
+                next.push(val.0);
+                return next;
+            }
+            return accum;
+        });
 }
