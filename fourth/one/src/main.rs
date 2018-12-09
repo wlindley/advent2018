@@ -5,17 +5,24 @@ use std::io::BufReader;
 
 fn main() {
     let guards = load_guards();
+    let g = guards.get(&2917).unwrap();
+    println!("Guard 2917 had {} naps totaling {} minutes", g.naps.len(), g.total_sleep());
+    let guard = find_sleepiest(&guards);
+    println!("Sleepied guard {} slept {} minutes with sleepiest minute {}", guard.id, guard.total_sleep(), guard.sleepiest_minute());
+    println!("Multiplied together: {}", guard.id * guard.sleepiest_minute() as u32);
+}
+
+fn find_sleepiest(guards: &HashMap<u32, Guard>) -> &Guard {
     let mut sleepiest_guard = 0;
     let mut most_sleep = 0;
-    for (_, guard) in &guards {
+    for (_, guard) in guards.iter() {
         let sleep = guard.total_sleep();
         if sleep > most_sleep {
             sleepiest_guard = guard.id;
             most_sleep = sleep;
         }
     }
-    println!("Sleepied guard {} slept {} minutes", sleepiest_guard, most_sleep);
-    println!("Multiplied together: {}", sleepiest_guard * most_sleep);
+    return &guards[&sleepiest_guard];
 }
 
 fn load_guards() -> HashMap<u32, Guard> {
@@ -35,13 +42,12 @@ fn load_guards() -> HashMap<u32, Guard> {
             },
             Line::NapEnd(end) => {
                 cur_nap.end = Option::Some(end);
-                match cur_nap.begin {
-                    Option::Some(_) => {
-                        guards.entry(cur_guard).or_insert(Guard::default(&cur_guard)).naps.push(cur_nap);
-                        cur_nap = Nap::empty();
-                    },
-                    Option::None => {},
+                let mut guard = guards.entry(cur_guard).or_insert_with(|| Guard::default(&cur_guard));
+                if cur_guard == 2917 {
+                    println!("Adding nap of {} minutes to list of {} naps", cur_nap.duration(), guard.naps.len());
                 }
+                guard.naps.push(cur_nap);
+                cur_nap = Nap::empty();
             },
         }
     }
@@ -116,10 +122,35 @@ struct Guard {
 
 impl Guard {
     fn default(id: &u32) -> Guard {
+        if *id == 2917 {
+            println!("Making new guard");
+        }
         return Guard{id: id.clone(), naps: Vec::default()};
     }
 
     fn total_sleep(&self) -> u32 {
         self.naps.iter().fold(0, |accum, nap| accum + nap.duration() as u32)
+    }
+
+    fn sleepiest_minute(&self) -> u8 {
+        let mut minutes: HashMap<u8, u32> = HashMap::new();
+        for nap in &self.naps {
+            for minute in nap.begin.unwrap() .. nap.end.unwrap() {
+                *minutes.entry(minute).or_insert(0) += 1;
+            }
+        }
+
+        let mut sleepiest = Option::None;
+        for (minute, count) in &minutes {
+            match sleepiest {
+                Option::None => sleepiest = Option::Some(minute),
+                Option::Some(m) => {
+                    if *count > minutes[&m] {
+                        sleepiest = Option::Some(minute);
+                    }
+                },
+            }
+        }
+        return *sleepiest.unwrap();
     }
 }
