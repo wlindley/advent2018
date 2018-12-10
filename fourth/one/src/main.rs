@@ -4,15 +4,14 @@ use std::io::prelude::*;
 use std::io::BufReader;
 
 fn main() {
-    let guards = load_guards();
-    let g = guards.get(&2917).unwrap();
-    println!("Guard 2917 had {} naps totaling {} minutes", g.naps.len(), g.total_sleep());
+    let lines = load_sorted_log();
+    let guards = parse_log(lines);
     let guard = find_sleepiest(&guards);
     println!("Sleepied guard {} slept {} minutes with sleepiest minute {}", guard.id, guard.total_sleep(), guard.sleepiest_minute());
     println!("Multiplied together: {}", guard.id * guard.sleepiest_minute() as u32);
 }
 
-fn find_sleepiest(guards: &HashMap<u32, Guard>) -> &Guard {
+fn find_sleepiest(guards: &HashMap<GuardId, Guard>) -> &Guard {
     let mut sleepiest_guard = 0;
     let mut most_sleep = 0;
     for (_, guard) in guards.iter() {
@@ -25,28 +24,23 @@ fn find_sleepiest(guards: &HashMap<u32, Guard>) -> &Guard {
     return &guards[&sleepiest_guard];
 }
 
-fn load_guards() -> HashMap<u32, Guard> {
-    let lines = load_sorted_log();
-    let mut guards: HashMap<u32, Guard> = HashMap::new();
+fn parse_log(lines: Vec<Line>) -> HashMap<GuardId, Guard> {
+    let mut guards = HashMap::new();
     let mut cur_guard = 0;
     let mut cur_nap = Nap::empty();
-    for l in lines.iter().map(parse_line) {
+    for l in lines {
         match l {
             Line::NewGuard(id) => {
                 cur_guard = id;
                 cur_nap = Nap::empty();
-                guards.insert(cur_guard, Guard::default(&cur_guard));
+                guards.entry(cur_guard).or_insert(Guard::default(&cur_guard));
             },
             Line::NapBegin(begin) => {
                 cur_nap.begin = Option::Some(begin);
             },
             Line::NapEnd(end) => {
                 cur_nap.end = Option::Some(end);
-                let mut guard = guards.entry(cur_guard).or_insert_with(|| Guard::default(&cur_guard));
-                if cur_guard == 2917 {
-                    println!("Adding nap of {} minutes to list of {} naps", cur_nap.duration(), guard.naps.len());
-                }
-                guard.naps.push(cur_nap);
+                guards.get_mut(&cur_guard).unwrap().naps.push(cur_nap.clone());
                 cur_nap = Nap::empty();
             },
         }
@@ -54,12 +48,12 @@ fn load_guards() -> HashMap<u32, Guard> {
     return guards;
 }
 
-fn load_sorted_log() -> Vec<String> {
+fn load_sorted_log() -> Vec<Line> {
     let f = File::open("input.txt").expect("could not find file");
     let r = BufReader::new(&f);
     let mut lines: Vec<String> = r.lines().map(|l| l.unwrap()).collect();
     lines.sort();
-    return lines;
+    return lines.iter().map(parse_line).collect();
 }
 
 fn parse_line(line: &String) -> Line {
@@ -88,27 +82,33 @@ fn parse_guard(input: &str) -> u32 {
     return guard_str.parse().unwrap();
 }
 
+type GuardId = u32;
+type Minute = u8;
+type Minutes = u32;
+
+#[derive(PartialEq, Eq, Debug)]
 enum Line {
-    NewGuard(u32),
-    NapBegin(u8),
-    NapEnd(u8),
+    NewGuard(GuardId),
+    NapBegin(Minute),
+    NapEnd(Minute),
 }
 
+#[derive(PartialEq, Eq, Debug, Clone)]
 struct Nap {
-    begin: Option<u8>, // minute nap begins
-    end: Option<u8>, // minute nap ends
+    begin: Option<Minute>, // minute nap begins
+    end: Option<Minute>, // minute nap ends
 }
 
 impl Nap {
     fn empty() -> Nap { Nap{begin: Option::None, end: Option::None}}
 
-    fn duration(&self) -> u8 {
+    fn duration(&self) -> Minutes {
         match self.begin {
             Option::None => 0,
             Option::Some(b) => {
                 match self.end {
                     Option::None => 0,
-                    Option::Some(e) => e - b,
+                    Option::Some(e) => (e - b) as u32,
                 }
             },
         }
@@ -116,23 +116,20 @@ impl Nap {
 }
 
 struct Guard {
-    id: u32,
+    id: GuardId,
     naps: Vec<Nap>,
 }
 
 impl Guard {
-    fn default(id: &u32) -> Guard {
-        if *id == 2917 {
-            println!("Making new guard");
-        }
+    fn default(id: &GuardId) -> Guard {
         return Guard{id: id.clone(), naps: Vec::default()};
     }
 
-    fn total_sleep(&self) -> u32 {
-        self.naps.iter().fold(0, |accum, nap| accum + nap.duration() as u32)
+    fn total_sleep(&self) -> Minutes {
+        self.naps.iter().fold(0, |accum, nap| accum + nap.duration())
     }
 
-    fn sleepiest_minute(&self) -> u8 {
+    fn sleepiest_minute(&self) -> Minute {
         let mut minutes: HashMap<u8, u32> = HashMap::new();
         for nap in &self.naps {
             for minute in nap.begin.unwrap() .. nap.end.unwrap() {
@@ -152,5 +149,117 @@ impl Guard {
             }
         }
         return *sleepiest.unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_lines() {
+        let input = vec![
+            String::from("[0000-01-01 23:58] Guard #1 begins shift"),
+            String::from("[0000-01-02 00:10] falls asleep"),
+            String::from("[0000-01-02 00:52] wakes up"),
+        ];
+        let output: Vec<Line> = input.iter().map(parse_line).collect();
+        assert_eq!(Line::NewGuard(1), output[0]);
+        assert_eq!(Line::NapBegin(10), output[1]);
+        assert_eq!(Line::NapEnd(52), output[2]);
+    }
+
+    #[test]
+    fn test_total_sleep() {
+        let guard = Guard{
+            id: 0,
+            naps: vec![
+                Nap{begin: Option::Some(0), end: Option::Some(5)},
+                Nap{begin: Option::Some(1), end: Option::Some(3)},
+                Nap{begin: Option::Some(10), end: Option::Some(13)},
+            ],
+        };
+
+        assert_eq!(10, guard.total_sleep());
+    }
+
+    #[test]
+    fn test_sleepiest_minute() {
+        let guard = Guard{
+            id: 0,
+            naps: vec![
+                Nap{begin: Option::Some(0), end: Option::Some(5)},
+                Nap{begin: Option::Some(3), end: Option::Some(10)},
+                Nap{begin: Option::Some(4), end: Option::Some(5)},
+            ],
+        };
+
+        assert_eq!(4, guard.sleepiest_minute());
+    }
+
+    #[test]
+    fn test_duration() {
+        assert_eq!(0, Nap{begin: Option::None, end: Option::Some(5)}.duration());
+        assert_eq!(0, Nap{begin: Option::Some(1), end: Option::None}.duration());
+        assert_eq!(10, Nap{begin: Option::Some(2), end: Option::Some(12)}.duration());
+    }
+
+    #[test]
+    fn test_find_sleepiest() {
+        let mut guards: HashMap<u32, Guard> = HashMap::new();
+        guards.insert(1, Guard{id: 1, naps: vec![Nap{begin: Option::Some(1), end: Option::Some(5)}]});
+        guards.insert(2, Guard{id: 2, naps: vec![Nap{begin: Option::Some(1), end: Option::Some(8)}]});
+        guards.insert(3, Guard{id: 3, naps: vec![Nap{begin: Option::Some(1), end: Option::Some(6)}]});
+        assert_eq!(2, find_sleepiest(&guards).id);
+    }
+
+    #[test]
+    fn test_parse_log() {
+        let log: Vec<Line> = vec![
+            Line::NewGuard(1),
+            Line::NapBegin(0),
+            Line::NapEnd(5),
+            Line::NapBegin(10),
+            Line::NapEnd(20),
+        ];
+        let guards = parse_log(log);
+        let guard = guards.get(&1).unwrap();
+        assert_eq!(2, guard.naps.len());
+        assert_eq!(15, guard.total_sleep());
+    }
+    #[test]
+    fn test_parse_multiday_log() {
+        let log: Vec<Line> = vec![
+            Line::NewGuard(1),
+            Line::NapBegin(0),
+            Line::NapEnd(5),
+            Line::NewGuard(1),
+            Line::NapBegin(10),
+            Line::NapEnd(20),
+        ];
+        let guards = parse_log(log);
+        let guard = guards.get(&1).unwrap();
+        assert_eq!(2, guard.naps.len());
+        assert_eq!(15, guard.total_sleep());
+    }
+
+    #[test]
+    fn test_parse_multiguard_log() {
+        let log: Vec<Line> = vec![
+            Line::NewGuard(1),
+            Line::NapBegin(0),
+            Line::NapEnd(5),
+
+            Line::NewGuard(2),
+            Line::NapBegin(10),
+            Line::NapEnd(20),
+        ];
+        let guards = parse_log(log);
+        let guard = guards.get(&1).unwrap();
+        assert_eq!(1, guard.naps.len());
+        assert_eq!(5, guard.total_sleep());
+        let guard = guards.get(&2).unwrap();
+        assert_eq!(1, guard.naps.len());
+        assert_eq!(10, guard.total_sleep());
     }
 }
