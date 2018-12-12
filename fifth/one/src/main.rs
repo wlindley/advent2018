@@ -16,8 +16,8 @@ fn main() {
 fn react(mut input: Vec<char>) -> Vec<char> {
     loop {
         let mut changed = false;
-        for i in 0..input.len()-1 {
-            match next_char(&input, i+1) {
+        for i in 0..input.len() - 1 {
+            match next_char(&input, i + 1) {
                 Option::None => break,
                 Option::Some((next_i, next_c)) => {
                     if can_react(input[i], next_c) {
@@ -25,7 +25,7 @@ fn react(mut input: Vec<char>) -> Vec<char> {
                         input[next_i] = '_';
                         changed = true;
                     }
-                },
+                }
             }
         }
 
