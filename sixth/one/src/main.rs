@@ -6,6 +6,16 @@ use std::io::BufReader;
 
 fn main() {
     let points = load_points();
+    let areas = calculate_areas(points);
+    let mut point = Point::new(0, 0);
+    let mut largest = std::i32::MIN;
+    for (p, area) in areas {
+        if area > largest {
+            point = p;
+            largest = area;
+        }
+    }
+    println!("Point {:?} has largest area: {}", point, largest);
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
