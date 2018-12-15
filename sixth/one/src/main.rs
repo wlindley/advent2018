@@ -1,4 +1,5 @@
 use std::cmp;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -7,7 +8,7 @@ fn main() {
     let points = load_points();
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 struct Point {
     x: i32,
     y: i32,
@@ -59,6 +60,13 @@ impl Rect {
             cur: self.top_left.clone(),
         };
     }
+
+    fn on_border(&self, point: &Point) -> bool {
+        return point.x == self.top_left.x
+            || point.x == self.bottom_right.x
+            || point.y == self.top_left.y
+            || point.y == self.bottom_right.y;
+    }
 }
 
 struct PointIterator {
@@ -81,6 +89,42 @@ impl Iterator for PointIterator {
         }
         return Option::Some(point);
     }
+}
+
+fn calculate_areas(points: Vec<Point>) -> HashMap<Point, i32> {
+    let rect = Rect::enclosing(&points);
+    let mut results: HashMap<Point, i32> = HashMap::new();
+    for point in rect.points() {
+        match find_closest(&point, &points) {
+            Option::None => continue,
+            Option::Some(closest) => {
+                if rect.on_border(&point) {
+                    *results.entry(closest.clone()).or_insert(0) = std::i32::MIN;
+                } else {
+                    *results.entry(closest.clone()).or_insert(0) += 1;
+                }
+            },
+        }
+    }
+    return results;
+}
+
+fn find_closest<'a>(probe: &Point, points: &'a Vec<Point>) -> Option<&'a Point> {
+    let mut distances = HashMap::new();
+    for p in points {
+        let dist = probe.distance(p);
+        if distances.contains_key(&dist) {
+            distances.insert(dist, Option::None);
+        } else {
+            distances.insert(dist, Option::Some(p));
+        }
+    }
+
+    let mut closest = std::i32::MAX;
+    for (&dist, _) in &distances {
+        closest = cmp::min(dist, closest);
+    }
+    return *distances.entry(closest).or_default();
 }
 
 fn load_points() -> Vec<Point> {
@@ -145,6 +189,17 @@ mod tests {
     }
 
     #[test]
+    fn test_on_border() {
+        let rect = Rect::new(0, 0, 5, 5);
+        assert_eq!(true, rect.on_border(&Point::new(0, 0)));
+        assert_eq!(true, rect.on_border(&Point::new(5, 5)));
+        assert_eq!(true, rect.on_border(&Point::new(2, 0)));
+        assert_eq!(true, rect.on_border(&Point::new(0, 3)));
+        assert_eq!(false, rect.on_border(&Point::new(1, 1)));
+        assert_eq!(false, rect.on_border(&Point::new(2, 3)));
+    }
+
+    #[test]
     fn test_distance() {
         assert_eq!(1, Point::new(0, 0).distance(&Point::new(1, 0)));
         assert_eq!(1, Point::new(0, 0).distance(&Point::new(0, 1)));
@@ -152,15 +207,33 @@ mod tests {
         assert_eq!(7, Point::new(1, 2).distance(&Point::new(5, -1)));
     }
 
-    // #[test]
-    // fn test_calculate_areas() {
-    //     let areas = calculate_areas(vec![
-    //         Point::new(0, 0), //inf
-    //         Point::new(0, 8), //inf
-    //         Point::new(8, 0), //inf
-    //         Point::new(8, 8), //inf
-    //         Point::new(4, 4), //23
-    //     ]);
-    //     assert_eq!(, )
-    // }
+    #[test]
+    fn test_find_closest() {
+        assert_eq!(Point::new(0, 0), *find_closest(&Point::new(0, 0), &vec![Point::new(0, 0), Point::new(2, 2)]).unwrap());
+        assert_eq!(Point::new(2, 2), *find_closest(&Point::new(2, 1), &vec![Point::new(0, 0), Point::new(2, 2)]).unwrap());
+        assert_eq!(Option::None, find_closest(&Point::new(1, 1), &vec![Point::new(0, 0), Point::new(2, 2)]));
+    }
+
+    #[test]
+    fn test_calculate_areas() {
+        let areas = calculate_areas(vec![
+            Point::new(1, 1), //inf
+            Point::new(1, 6), //inf
+            Point::new(8, 3), //inf
+            Point::new(3, 4), // 9
+            Point::new(5, 5), //17
+            Point::new(8, 9), //inf
+        ]);
+        assert_eq!(9, areas[&Point::new(3, 4)]);
+        assert_eq!(17, areas[&Point::new(5, 5)]);
+
+        let areas = calculate_areas(vec![
+            Point::new(0, 0), //inf
+            Point::new(0, 8), //inf
+            Point::new(8, 0), //inf
+            Point::new(8, 8), //inf
+            Point::new(4, 4), //23
+        ]);
+        assert_eq!(25, areas[&Point::new(4, 4)]);
+    }
 }
