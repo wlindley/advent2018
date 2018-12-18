@@ -9,19 +9,12 @@ const DEPENDEE_INDEX: usize = 36;
 fn main() {
     let relationships: Vec<Relationship> = read_input().iter().map(parse_line).collect();
     let graph = build_graph(&relationships);
-    let mut workgroup = WorkGroup::new(5, graph);
-    let mut ticks = 0;
-    loop {
-        ticks += 1;
-        match workgroup.tick() {
-            WorkGroupState::Working => continue,
-            WorkGroupState::Complete => break,
-        };
-    }
+    let workgroup = WorkGroup::new(5, graph);
+    let (seconds, result) = run_to_completion(workgroup);
     println!(
         "Took {} seconds to produce solution {}",
-        ticks,
-        workgroup.result()
+        seconds,
+        result,
     );
 }
 
@@ -87,6 +80,29 @@ fn cost(task: &char) -> u32 {
     return 61 + (*task as u8 - 'A' as u8) as u32;
 }
 
+fn run_to_completion(mut workgroup: WorkGroup) -> (u32, String) {
+    let mut ticks = 0;
+    loop {
+        print!("tick {:02}:", ticks);
+        for (i, elf) in workgroup.elves.iter().enumerate() {
+            match elf.task {
+                Option::None => print!(" E{},*", i),
+                Option::Some(t) => print!(" E{},{}", i, t),
+            };
+        }
+        println!("");
+
+        match workgroup.tick() {
+            WorkGroupState::Working => {
+                ticks += 1;
+                continue;
+            },
+            WorkGroupState::Complete => break,
+        };
+    }
+    return (ticks, workgroup.result());
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct Relationship {
     depender: char,
@@ -126,7 +142,7 @@ impl Elf {
 
     fn start(&mut self, task: char, duration: u32) {
         self.task = Option::Some(task);
-        self.time = duration + 1; // start 1 higher because we decrement before our first check
+        self.time = duration;
     }
 
     fn tick(&mut self) -> ElfState {
@@ -142,12 +158,20 @@ impl Elf {
             }
         };
     }
+
+    fn state(&self) -> ElfState {
+        match self.task {
+            Option::None => return ElfState::Idle,
+            Option::Some(_) => return ElfState::Working,
+        };
+    }
 }
 
 struct WorkGroup {
     elves: Vec<Elf>,
     graph: HashMap<char, Vec<char>>,
     result: Vec<char>,
+    cost: fn(&char) -> u32,
 }
 
 enum WorkGroupState {
@@ -161,6 +185,7 @@ impl WorkGroup {
             elves: (0..num_workers).map(|_| Elf::new()).collect(),
             graph: graph,
             result: Vec::new(),
+            cost: cost,
         };
     }
 
@@ -177,19 +202,32 @@ impl WorkGroup {
                     continue;
                 }
                 ElfState::Idle => {
-                    if start_next(elf, &mut self.graph) {
+                    if start_next(elf, &mut self.graph, self.cost) {
                         all_idle = false;
                     }
                 }
                 ElfState::Complete(task) => {
                     self.result.push(task);
                     complete_item(&mut self.graph, task);
-                    if start_next(elf, &mut self.graph) {
+                    if start_next(elf, &mut self.graph, self.cost) {
                         all_idle = false;
                     }
                 }
             };
         }
+
+        for elf in &mut self.elves {
+            match elf.state() {
+                ElfState::Working => continue,
+                ElfState::Complete(_) => continue,
+                ElfState::Idle => {
+                    if start_next(elf, &mut self.graph, self.cost) {
+                        all_idle = false;
+                    }
+                },
+            };
+        }
+
         if all_idle && self.graph.len() == 0 {
             return WorkGroupState::Complete;
         }
@@ -197,7 +235,7 @@ impl WorkGroup {
     }
 }
 
-fn start_next(elf: &mut Elf, graph: &mut HashMap<char, Vec<char>>) -> bool {
+fn start_next(elf: &mut Elf, graph: &mut HashMap<char, Vec<char>>, cost: fn(&char) -> u32) -> bool {
     match next_item(graph) {
         Option::None => return false,
         Option::Some(task) => elf.start(task, cost(&task)),
@@ -269,7 +307,6 @@ mod tests {
         let mut elf = Elf::new();
         elf.start('A', 2);
         assert_eq!(ElfState::Working, elf.tick());
-        assert_eq!(ElfState::Working, elf.tick());
         assert_eq!(ElfState::Complete('A'), elf.tick());
         assert_eq!(ElfState::Idle, elf.tick());
     }
@@ -278,7 +315,7 @@ mod tests {
     fn test_tick_cost() {
         let mut elf = Elf::new();
         elf.start('C', cost(&'C'));
-        for _ in 0..63 {
+        for _ in 0..62 {
             assert_eq!(ElfState::Working, elf.tick());
         }
         assert_eq!(ElfState::Complete('C'), elf.tick());
@@ -309,5 +346,28 @@ mod tests {
             }
         }
         assert_eq!("ACBD", group.result());
+    }
+
+    #[test]
+    fn test_example() {
+        let relationships = vec![
+            Relationship::new('A', 'C'),
+            Relationship::new('F', 'C'),
+            Relationship::new('B', 'A'),
+            Relationship::new('D', 'A'),
+            Relationship::new('E', 'B'),
+            Relationship::new('E', 'D'),
+            Relationship::new('E', 'F'),
+        ];
+        let graph = build_graph(&relationships);
+        let mut group = WorkGroup::new(2, graph);
+        group.cost = |&task| 1 + (task as u8 - b'A' as u8) as u32;
+        assert_eq!(1, (group.cost)(&'A'));
+        assert_eq!(2, (group.cost)(&'B'));
+        assert_eq!(3, (group.cost)(&'C'));
+        assert_eq!(26, (group.cost)(&'Z'));
+        let (seconds, result) = run_to_completion(group);
+        assert_eq!(String::from("CABFDE"), result);
+        assert_eq!(15, seconds);
     }
 }
