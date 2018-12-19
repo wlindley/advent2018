@@ -17,7 +17,10 @@ fn read_input() -> String {
 }
 
 fn numeric_stream(input: &String) -> Vec<u32> {
-    return input.split_whitespace().map(|t| t.parse().unwrap()).collect();
+    return input
+        .split_whitespace()
+        .map(|t| t.parse().unwrap())
+        .collect();
 }
 
 fn parse(input: &String) -> Node {
@@ -34,19 +37,22 @@ struct Node {
 
 impl Node {
     fn new(children: Vec<Node>, metadata: Vec<u32>) -> Node {
-        return Node{children, metadata};
+        return Node { children, metadata };
     }
 
     fn read(mut stream: &mut std::slice::Iter<u32>) -> Node {
         let (num_children, num_metadata) = Node::read_header(&mut stream);
-        return Node{
+        return Node {
             children: Node::read_children(&mut stream, num_children),
             metadata: Node::read_metadata(&mut stream, num_metadata),
         };
     }
 
     fn read_header(stream: &mut std::slice::Iter<u32>) -> (usize, usize) {
-        return (*stream.next().unwrap() as usize, *stream.next().unwrap() as usize);
+        return (
+            *stream.next().unwrap() as usize,
+            *stream.next().unwrap() as usize,
+        );
     }
 
     fn read_children(mut stream: &mut std::slice::Iter<u32>, count: usize) -> Vec<Node> {
@@ -61,15 +67,19 @@ impl Node {
         if self.children.len() == 0 {
             return self.metadata.iter().sum();
         }
-        return self.metadata.iter().map(|i| {
-            if *i == 0 {
-                return 0;
-            }
-            return match self.children.get((i - 1) as usize) {
-                Option::None => 0,
-                Option::Some(c) => c.value(),
-            }
-        }).sum();
+        return self
+            .metadata
+            .iter()
+            .map(|i| {
+                if *i == 0 {
+                    return 0;
+                }
+                return match self.children.get((i - 1) as usize) {
+                    Option::None => 0,
+                    Option::Some(c) => c.value(),
+                };
+            })
+            .sum();
     }
 }
 
@@ -101,10 +111,13 @@ mod tests {
         let node = Node::new(Vec::new(), vec![1, 2, 3]);
         assert_eq!(6, node.value());
 
-        let node = Node::new(vec![
-            Node::new(Vec::new(), vec![4, 5, 6]),
-            Node::new(Vec::new(), vec![7, 8, 9]),
-        ], vec![1, 1, 2, 0, 3]);
+        let node = Node::new(
+            vec![
+                Node::new(Vec::new(), vec![4, 5, 6]),
+                Node::new(Vec::new(), vec![7, 8, 9]),
+            ],
+            vec![1, 1, 2, 0, 3],
+        );
         assert_eq!(54, node.value());
     }
 }
