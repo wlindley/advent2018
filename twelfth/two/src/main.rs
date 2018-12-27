@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
@@ -34,15 +33,14 @@ fn parse_pots(input: &String) -> State {
 
 type Pot = (i32, bool);
 type State = VecDeque<Pot>;
-type Window = VecDeque<Pot>;
-type PlantPattern = u8;
+type PlantPattern = usize;
 type Rule = (PlantPattern, bool);
-type Rules = HashMap<PlantPattern, bool>;
+type Rules = [bool; 1<<WINDOW_SIZE];
 type Count = i128;
 type Generations = u64;
 const PAD_SIZE: usize = 4;
 const WINDOW_SIZE: usize = 5;
-const BITMASK: u8 = 0b00011110;
+const BITMASK: PlantPattern = 0b00011110;
 
 fn parse_pattern(input: &String) -> Rule {
     let values = input.replace(" => ", "");
@@ -57,9 +55,9 @@ fn parse_pattern(input: &String) -> Rule {
 }
 
 fn build_rules(rules: Vec<Rule>) -> Rules {
-    let mut result = HashMap::new();
+    let mut result = [false; 1<<WINDOW_SIZE];
     for (pattern, alive) in rules {
-        result.insert(pattern, alive);
+        result[pattern] = alive;
     }
     return result;
 }
@@ -68,14 +66,14 @@ fn next_generation(mut state: State, rules: &Rules) -> State {
     state = pad(state, PAD_SIZE);
     let mut next = State::with_capacity(state.len() + 2);
     let mut iter = state.iter();
-    let mut window = 0u8;
+    let mut window = 0usize;
     let mut cur_pot_num = state.front().unwrap().0 - 2;
     while let Some(pot) = iter.next() {
         window = (window & BITMASK) >> 1;
         if pot.1 {
             window |= 1 << (WINDOW_SIZE - 1);
         }
-        let new_pot = match rules.get(&window) {
+        let new_pot = match rules.get(window) {
             None => (cur_pot_num, false),
             Some(alive) => (cur_pot_num, *alive),
         };
@@ -86,12 +84,9 @@ fn next_generation(mut state: State, rules: &Rules) -> State {
 }
 
 fn pad(mut state: State, pad_size: usize) -> State {
-    // let mut min_index = state.front().unwrap().0;
     let mut max_index = state.back().unwrap().0;
     for _ in 0..pad_size {
-        // min_index -= 1;
         max_index += 1;
-        // state.push_front((min_index, false));
         state.push_back((max_index, false));
     }
     state
@@ -295,7 +290,7 @@ mod tests {
         let mut pattern = 0;
         for i in 0..WINDOW_SIZE {
             if input[i] {
-                pattern |= (1 << i);
+                pattern |= 1 << i;
             }
         }
         pattern
