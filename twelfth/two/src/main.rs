@@ -66,17 +66,22 @@ fn next_generation(mut state: State, rules: &Rules) -> State {
     let mut window = 0usize;
     let mut cur_pot_num = state.front().unwrap().0;
     let length = state.len();
-    for i in 2..length {
+    for i in 2..length-2 {
         let pot = state.get(i).unwrap();
         window = (window & BITMASK) >> 1;
-        if pot.1 {
-            window |= 1 << (WINDOW_SIZE - 1);
-        }
-        let new_pot = match rules.get(window) {
+        window |= (pot.1 as PlantPattern) << (WINDOW_SIZE - 1);
+        state[i - 2] = match rules.get(window) {
             None => (cur_pot_num, false),
             Some(alive) => (cur_pot_num, *alive),
         };
-        state[i - 2] = new_pot;
+        cur_pot_num += 1;
+    }
+    for i in length-2..length-2+WINDOW_SIZE-1 {
+        window = (window & BITMASK) >> 1;
+        state[i - 2] = match rules.get(window) {
+            None => (cur_pot_num, false),
+            Some(alive) => (cur_pot_num, *alive),
+        };
         cur_pot_num += 1;
     }
     trim(state)
@@ -89,7 +94,7 @@ fn pad(mut state: State) -> State {
         min_index -= 1;
         state.push_front((min_index, false));
     }
-    for _ in 0..4 {
+    for _ in 0..2 {
         max_index += 1;
         state.push_back((max_index, false));
     }
