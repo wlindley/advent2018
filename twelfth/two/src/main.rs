@@ -38,7 +38,6 @@ type Rule = (PlantPattern, bool);
 type Rules = [bool; 1<<WINDOW_SIZE];
 type Count = i128;
 type Generations = u64;
-const PAD_SIZE: usize = 4;
 const WINDOW_SIZE: usize = 5;
 const BITMASK: PlantPattern = 0b00011110;
 
@@ -63,12 +62,12 @@ fn build_rules(rules: Vec<Rule>) -> Rules {
 }
 
 fn next_generation(mut state: State, rules: &Rules) -> State {
-    state = pad(state, PAD_SIZE);
-    let mut next = State::with_capacity(state.len() + 2);
-    let mut iter = state.iter();
+    state = pad(state);
     let mut window = 0usize;
-    let mut cur_pot_num = state.front().unwrap().0 - 2;
-    while let Some(pot) = iter.next() {
+    let mut cur_pot_num = state.front().unwrap().0;
+    let length = state.len();
+    for i in 2..length {
+        let pot = state.get(i).unwrap();
         window = (window & BITMASK) >> 1;
         if pot.1 {
             window |= 1 << (WINDOW_SIZE - 1);
@@ -77,15 +76,20 @@ fn next_generation(mut state: State, rules: &Rules) -> State {
             None => (cur_pot_num, false),
             Some(alive) => (cur_pot_num, *alive),
         };
-        next.push_back(new_pot);
+        state[i - 2] = new_pot;
         cur_pot_num += 1;
     }
-    trim(next)
+    trim(state)
 }
 
-fn pad(mut state: State, pad_size: usize) -> State {
+fn pad(mut state: State) -> State {
+    let mut min_index = state.front().unwrap().0;
     let mut max_index = state.back().unwrap().0;
-    for _ in 0..pad_size {
+    for _ in 0..2 {
+        min_index -= 1;
+        state.push_front((min_index, false));
+    }
+    for _ in 0..4 {
         max_index += 1;
         state.push_back((max_index, false));
     }
@@ -100,16 +104,6 @@ fn trim(mut state: State) -> State {
         state.pop_back();
     }
     state
-}
-
-fn pattern(pots: &Window) -> PlantPattern {
-    let mut pattern = 0;
-    for (i, pot) in pots.iter().enumerate() {
-        if pot.1 {
-            pattern |= 1 << i;
-        }
-    }
-    pattern
 }
 
 fn stringify(state: &State) -> String {
