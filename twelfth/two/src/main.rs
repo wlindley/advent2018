@@ -42,6 +42,7 @@ type Count = i128;
 type Generations = u64;
 const PAD_SIZE: usize = 4;
 const WINDOW_SIZE: usize = 5;
+const BITMASK: u8 = 0b00011110;
 
 fn parse_pattern(input: &String) -> Rule {
     let values = input.replace(" => ", "");
@@ -66,30 +67,31 @@ fn build_rules(rules: Vec<Rule>) -> Rules {
 fn next_generation(mut state: State, rules: &Rules) -> State {
     state = pad(state, PAD_SIZE);
     let mut next = State::with_capacity(state.len() + 2);
-    let mut iter = state.into_iter();
-    let mut window = VecDeque::with_capacity(WINDOW_SIZE);
-    for _ in 0..WINDOW_SIZE-1 {
-        window.push_back(iter.next().unwrap());
-    }
+    let mut iter = state.iter();
+    let mut window = 0u8;
+    let mut cur_pot_num = state.front().unwrap().0 - 2;
     while let Some(pot) = iter.next() {
-        window.push_back(pot);
-        let new_pot = match rules.get(&pattern(&window)) {
-            None => (window[2].0, false),
-            Some(alive) => (window[2].0, *alive),
+        window = (window & BITMASK) >> 1;
+        if pot.1 {
+            window |= 1 << (WINDOW_SIZE - 1);
+        }
+        let new_pot = match rules.get(&window) {
+            None => (cur_pot_num, false),
+            Some(alive) => (cur_pot_num, *alive),
         };
         next.push_back(new_pot);
-        window.pop_front();
+        cur_pot_num += 1;
     }
     trim(next)
 }
 
 fn pad(mut state: State, pad_size: usize) -> State {
-    let mut min_index = state.front().unwrap().0;
+    // let mut min_index = state.front().unwrap().0;
     let mut max_index = state.back().unwrap().0;
     for _ in 0..pad_size {
-        min_index -= 1;
+        // min_index -= 1;
         max_index += 1;
-        state.push_front((min_index, false));
+        // state.push_front((min_index, false));
         state.push_back((max_index, false));
     }
     state
