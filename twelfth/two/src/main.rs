@@ -6,7 +6,8 @@ use std::io::BufReader;
 fn main() {
     let lines = read_input();
     let mut iter = lines.iter();
-    let state = parse_pots(iter.next().unwrap());
+    let mut state = parse_pots(iter.next().unwrap());
+    state.reserve(1_000_000);
     let iter = iter.skip(1); // blank line
     let patterns: Vec<Rule> = iter.map(parse_pattern).collect();
     let rules = build_rules(patterns);
@@ -92,20 +93,24 @@ fn pad(mut state: State) -> State {
     let mut max_index = state.back().unwrap().0;
     for _ in 0..2 {
         min_index -= 1;
-        state.push_front((min_index, false));
-    }
-    for _ in 0..2 {
         max_index += 1;
+        state.push_front((min_index, false));
         state.push_back((max_index, false));
     }
     state
 }
 
 fn trim(mut state: State) -> State {
-    while !state.front().unwrap().1 {
+    while let Some(pot) = state.front() {
+        if pot.1 {
+            break;
+        }
         state.pop_front();
     }
-    while !state.back().unwrap().1 {
+    while let Some(pot) = state.back() {
+        if pot.1 {
+            break;
+        }
         state.pop_back();
     }
     state
@@ -126,7 +131,7 @@ fn stringify(state: &State) -> String {
 fn generations(mut state: State, rules: &Rules, generations: Generations) -> State {
     for i in 0..generations {
         state = next_generation(state, rules);
-        if i % 1000000 == 0 {
+        if i % 10000000 == 0 {
             println!("Completed generation {}", i);
         }
     }
