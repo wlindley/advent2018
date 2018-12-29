@@ -211,25 +211,40 @@ impl Simulation {
 
     pub fn until_crash(&mut self) -> Coord {
         loop {
-            self.tick();
-            match self.detect_crash() {
+            match self.tick() {
                 None => continue,
                 Some(coord) => return coord,
             }
         }
     }
 
-    fn tick(&mut self) {
+    fn tick(&mut self) -> Option<Coord> {
         self.carts.sort_unstable();
-        for cart in &mut self.carts {
+        let num_carts = self.carts.len();
+        for i in 0..num_carts {
+            let mut cart = &mut self.carts[i];
             match location(&self.map, cart.row, cart.col) {
                 None => panic!(
                     "Cart out of bounds @ {},{} going {:?}",
                     cart.row, cart.col, cart.dir
                 ),
-                Some(cell) => cart.advance(cell),
+                Some(cell) => {
+                    cart.advance(cell);
+                    let coord = (cart.row, cart.col);
+
+                    for j in 0..num_carts {
+                        if i == j {
+                            continue;
+                        }
+                        let other = &self.carts[j];
+                        if coord.0 == other.row && coord.1 == other.col {
+                            return Some(coord);
+                        }
+                    }
+                },
             }
         }
+        None
     }
 
     fn detect_crash(&self) -> Option<Coord> {
